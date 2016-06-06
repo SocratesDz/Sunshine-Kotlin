@@ -6,11 +6,10 @@ import android.os.AsyncTask
 import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.ArrayAdapter
 import android.widget.ListView
+import org.json.JSONException
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -19,6 +18,9 @@ import java.net.URL
 
 
 class ForecastFragment : Fragment() {
+
+    var mArrayAdapter : ArrayAdapter<String>? = null
+    val LOG_TAG = ForecastFragment::class.simpleName
 
     override fun onCreateView(inflater: LayoutInflater?, container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
@@ -31,6 +33,8 @@ class ForecastFragment : Fragment() {
                 "Fri - Foggy - 70 / 46",
                 "Sat - Sunny - 76 / 83"
         )
+
+        fakeData.filter { it == "" }
 
         val adapter = ArrayAdapter<String>(
                 context,
@@ -48,16 +52,53 @@ class ForecastFragment : Fragment() {
         return rootView
     }
 
-    class FetchWeatherTask : AsyncTask<Void, Void, Void>() {
-        override fun doInBackground(vararg params: Void?): Void? {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setHasOptionsMenu(true)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?, inflater: MenuInflater?) {
+        inflater?.inflate(R.menu.forecastfragment, menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem?): Boolean =
+        when(item?.itemId) {
+            R.id.action_refresh -> {
+                val task = FetchWeatherTask()
+                task.execute("94043")
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+
+    class FetchWeatherTask : AsyncTask<String?, Void, List<String>?>() {
+
+        val LOG_TAG = FetchWeatherTask::class.simpleName
+
+        override fun doInBackground(vararg params: String?): List<String>? {
             var urlConnection : HttpURLConnection? = null
             var reader : BufferedReader? = null
             var forecastJsonStr : String? = null
+            val forecastList: List<String>?
+
+            val postalCode : String?
+            val mode = "json"
+            val units = "metric"
+            val numDays = 7
+            val appId = "528261aeca93cd9665a551b47eb80f41";
 
             try {
+                postalCode = params?.get(0)
                 val url = URL("http://api.openweathermap.org/data/2.5/forecast/daily?q=94043&mode=json&units=metric&cnt=7")
 
-                urlConnection = url.openConnection() as HttpURLConnection
+                val builder = Uri.parse("http://api.openweathermap.org/data/2.5/forecast/daily").buildUpon()
+                    .appendQueryParameter("q", postalCode)
+                    .appendQueryParameter("mode", mode)
+                    .appendQueryParameter("units", units)
+                    .appendQueryParameter("cnt", numDays.toString())
+                    .appendQueryParameter("APPID", appId)
+
+                urlConnection = URL(builder.build().toString()).openConnection() as HttpURLConnection
                 urlConnection.requestMethod = "GET"
                 urlConnection.connect()
 
@@ -69,6 +110,13 @@ class ForecastFragment : Fragment() {
                 reader.forEachLine { buffer.append(it).append("\n") }
 
                 forecastJsonStr = buffer.toString()
+
+                try {
+                    forecastList = getWeatherDataFromJson(forecastJsonStr, numDays)
+                }
+                catch (ex: JSONException) {
+                    Log.e(LOG_TAG, "JSON Error", ex)
+                }
             } catch (e : IOException) {
                 Log.e("ForecastFragment", "Error", e)
             } finally {
@@ -80,6 +128,11 @@ class ForecastFragment : Fragment() {
             }
             return null;
 
+        }
+
+        private fun getWeatherDataFromJson(forecastJsonStr : String, numDays: Int) : List<String>? {
+            // TODO: getWeatherMethod
+            return null
         }
 
     }
